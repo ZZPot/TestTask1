@@ -5,7 +5,7 @@ using namespace cv;
 
 #define WND_NAME_ORIG	"Original"
 #define WND_NAME_MODEL	"Model"
-#define FRAMES_DIR		"MovingObject2/%03d.png"
+#define FRAMES_DIR		"MovingObject1/%04d.bmp"
 #define FONT_SIZE		15
 #define INFO_LEN		64
 
@@ -17,7 +17,7 @@ int main()
 	{
 		return 1;
 	}
-	Point2f p1(0, 0), p2(0.48, 0.6);
+	Point2f p1(0, 0), p2(0.5, 1);
 	Mat frame;
 	unsigned frame_count = 0;
 	while(files.read(frame))
@@ -35,7 +35,7 @@ int main()
 			continue;
 		static line_segment that_line = {LogicToWindow(p1, frame.size()), LogicToWindow(p2, frame.size())};
 		static moving_object mov_obj = objects[0];
-		mov_obj.SetTraceLen(60);
+		mov_obj.SetTraceLen(5);
 		mov_obj.NewPos(objects[0]);
 		Mat model_frame = Mat::zeros(frame.size(), CV_8UC3);
 		DrawFrame(model_frame, mov_obj, that_line);

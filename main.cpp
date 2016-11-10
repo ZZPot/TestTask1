@@ -1,15 +1,18 @@
 #include "MovingObject.h"
 #include "MovingPoints.h"
 #include <opencv2/imgproc.hpp>
+#include <opencv2/video.hpp>
 #include <stdio.h>
 using namespace cv;
 
 #define WND_NAME_ORIG	"Original"
 #define WND_NAME_MODEL	"Model"
+#define WND_NAME_BG		"Background"
 #define FRAMES_DIR		"MovingObject1/%04d.bmp"
 #define FONT_SIZE		15
 #define INFO_LEN		64
-#define ALT_METHOD
+//#define ALT_METHOD
+#define BG_SEG
 
 #pragma warning (disable: 4996)
 int main()
@@ -22,6 +25,10 @@ int main()
 	Point2f p1(0, 0), p2(0.5, 1);
 	Mat frame;
 	unsigned frame_count = 0;
+#ifdef BG_SEG
+	int frame_adapt	= 3;
+	Ptr<BackgroundSubtractorMOG2> pMOG2 = createBackgroundSubtractorMOG2(frame_adapt, 16, false);
+#endif
 	while(files.read(frame))
 	{
 		imshow(WND_NAME_ORIG, frame);
@@ -40,16 +47,34 @@ int main()
 			continue;
 		GetObj2d(&obj);
 #else
-		cvtColor(frame, frame, CV_BGR2GRAY);
-		Mat frame_bw;
-		threshold(frame, frame_bw, 0, 255, THRESH_OTSU);
-		if(countNonZero(frame_bw) > ((frame_bw.cols * frame_bw.rows) / 2))
-			frame_bw = 1 - frame_bw;
-		std::vector<Obj2d> objects = FindObjects(frame_bw, 
-						std::vector<type_condition>(), std::vector<int>(), RETR_EXTERNAL);
-		if(!objects.size())
-			continue;
-		obj = objects[0];
+	#ifdef BG_SEG
+			static Mat fg_mask;
+			pMOG2->apply(frame, fg_mask);
+			if(frame_count < frame_adapt)
+			{
+				frame_count++;
+				continue;
+			}
+			static Mat bg_img;
+			pMOG2->getBackgroundImage(bg_img);
+			imshow(WND_NAME_BG, bg_img);
+			std::vector<Obj2d> objects = FindObjects(fg_mask, 
+								std::vector<type_condition>(), std::vector<int>(), RETR_EXTERNAL);
+			if(!objects.size())
+					continue;
+			obj = objects[0];
+	#else
+			cvtColor(frame, frame, CV_BGR2GRAY);
+			Mat frame_bw;
+			threshold(frame, frame_bw, 0, 255, THRESH_OTSU);
+			if(countNonZero(frame_bw) > ((frame_bw.cols * frame_bw.rows) / 2))
+				frame_bw = 1 - frame_bw;
+			std::vector<Obj2d> objects = FindObjects(frame_bw, 
+							std::vector<type_condition>(), std::vector<int>(), RETR_EXTERNAL);
+			if(!objects.size())
+				continue;
+			obj = objects[0];
+	#endif
 #endif
 		static moving_object mov_obj = obj;
 		mov_obj.SetTraceLen(5);
@@ -88,7 +113,8 @@ int main()
 		}		
 		imshow(WND_NAME_MODEL, model_frame);
 
-		waitKey(0);
+		if(waitKey(0) == 27)
+			break;
 		frame_count++;
 	}
 	return 0;

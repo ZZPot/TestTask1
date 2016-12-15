@@ -1,5 +1,5 @@
 #pragma once
-#include "FeatureDetector.h"
+#include "FeatureDetector/FeatureDetector.h"
 
 #define MIN_POINTS_COUNT	4
 

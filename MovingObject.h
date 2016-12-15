@@ -1,5 +1,5 @@
 #pragma once
-#include "FeatureDetector.h"
+#include "FeatureDetector/FeatureDetector.h"
 #include <queue>
 
 #define COLOR_OBJECT	0

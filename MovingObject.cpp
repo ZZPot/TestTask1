@@ -86,7 +86,7 @@ float GetAngleDiff(line_segment line1, line_segment line2)
 	bool vertical[2] = {GetEq(line1, p[0]), GetEq(line2, p[1])};
 	float angle1 = vertical[0] ? 90 : 90 - 180 / M_PI * atan(p[0].x);
 	float angle2 = vertical[1] ? 90 : 90 - 180 / M_PI * atan(p[1].x);
-	return abs(angle1 - angle2);
+	return angle1 - angle2;
 }
 bool Intersect(line_segment line1, line_segment line2, cv::Point2f* point)
 {

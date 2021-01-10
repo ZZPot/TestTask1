@@ -1,4 +1,5 @@
 #include "MovingObject.h"
+#include "FeatureDetector/Draw/DrawDebug.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <opencv2/imgproc.hpp>

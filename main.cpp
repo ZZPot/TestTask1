@@ -1,87 +1,70 @@
 #include "MovingObject.h"
 #include "MovingPoints.h"
+#include "ObjectDetector/BGSDetector/BGSDetector.h"
+#include "ObjectDetector/AltDetector/AltDetector.h"
+#include "ObjectDetector/SimpleDetector/SimpleDetector.h"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video.hpp>
 #include <stdio.h>
-using namespace cv;
+#include <conio.h>
 
 #define WND_NAME_ORIG	"Original"
 #define WND_NAME_MODEL	"Model"
 #define WND_NAME_BG		"Background"
-#define FRAMES_DIR		"MovingObject1/%04d.bmp"
+#define FRAMES_DIR		"MovingObject1Fixed/%04d.png"
 #define FONT_SIZE		15
 #define INFO_LEN		64
-//#define ALT_METHOD
-#define BG_SEG
 
-#pragma warning (disable: 4996)
+//#define ALT_METHOD
+//#define BG_SEG
+
+#pragma warning (disable: 4996 4267)
 int main()
 {
-	VideoCapture files;
+	cv::VideoCapture files;
 	if(!files.open(FRAMES_DIR))
 	{
 		return 1;
 	}
-	Point2f p1(0, 0), p2(0.5, 1);
-	Mat frame;
+	cv::Point2f p1(0, 0), p2(0.5, 1);
+	cv::Mat frame;
 	unsigned frame_count = 0;
+
+	ObjectDetector *objDetector = nullptr;
+
 #ifdef BG_SEG
-	int frame_adapt	= 3;
-	Ptr<BackgroundSubtractorMOG2> pMOG2 = createBackgroundSubtractorMOG2(frame_adapt, 16, false);
+	objDetector = new BGSDetector;
+#elif defined ALT_METHOD
+	objDetector = new AltDetector;
+#else
+	objDetector = new SimpleDetector;
 #endif
+	
+
 	while(files.read(frame))
 	{
-		imshow(WND_NAME_ORIG, frame);
+		cv::imshow(WND_NAME_ORIG, frame);
 		static line_segment that_line = {LogicToWindow(p1, frame.size()), LogicToWindow(p2, frame.size())};
 		Obj2d obj;
 
-#ifdef ALT_METHOD
-		static moving_points mov_p(frame);
-		if(!frame_count) // if bg will be complex it can get whole image as object
+		// Object detection
+		if (!objDetector->AddFrame(frame))
 		{
-			frame_count++;
 			continue;
 		}
-		mov_p.AddFrame(frame);
-		if(!mov_p.GetObj(&obj))
+		std::vector<Obj2d> objects = objDetector->DetectObjects(frame);
+		if (!objects.size())
 			continue;
-		GetObj2d(&obj);
-#else
-	#ifdef BG_SEG
-			static Mat fg_mask;
-			pMOG2->apply(frame, fg_mask);
-			if(frame_count < frame_adapt)
-			{
-				frame_count++;
-				continue;
-			}
-			static Mat bg_img;
-			pMOG2->getBackgroundImage(bg_img);
-			imshow(WND_NAME_BG, bg_img);
-			std::vector<Obj2d> objects = FindObjects(fg_mask, 
-								std::vector<type_condition>(), std::vector<int>(), RETR_EXTERNAL);
-			if(!objects.size())
-					continue;
-			obj = objects[0];
-	#else
-			cvtColor(frame, frame, CV_BGR2GRAY);
-			Mat frame_bw;
-			threshold(frame, frame_bw, 0, 255, THRESH_OTSU);
-			if(countNonZero(frame_bw) > ((frame_bw.cols * frame_bw.rows) / 2))
-				frame_bw = 1 - frame_bw;
-			std::vector<Obj2d> objects = FindObjects(frame_bw, 
-							std::vector<type_condition>(), std::vector<int>(), RETR_EXTERNAL);
-			if(!objects.size())
-				continue;
-			obj = objects[0];
-	#endif
-#endif
+		obj = objects[0];
+
+		// Tracing it's movements
+		// Need to collapse it to some class
 		static moving_object mov_obj = obj;
 		mov_obj.SetTraceLen(5);
 		mov_obj.NewPos(obj);
-		Mat model_frame = Mat::zeros(frame.size(), CV_8UC3);
+		cv::Mat model_frame = cv::Mat::zeros(frame.size(), CV_8UC3);
 		DrawFrame(model_frame, mov_obj, that_line);
-		Point2f poc;
+		cv::Point2f poc;
 		line_segment last_move = mov_obj.GetLastMove();
 		bool intersect_center = Intersect(last_move, that_line, &poc);
 		std::vector<std::pair<int, cv::Point2f>> points;
@@ -90,32 +73,34 @@ int main()
 		unsigned info_count = 1;
 		char info_str[INFO_LEN] = "";
 		sprintf(info_str, "Frame: %d", frame_count); // unsecure, VS will generate warning
-		putText(model_frame, info_str, Point(0, FONT_SIZE*info_count++), 
-				FONT_HERSHEY_PLAIN, 1, Scalar(255, 255, 255), 1, LINE_8);
+		putText(model_frame, info_str, cv::Point(0, FONT_SIZE*info_count++),
+			cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(255, 255, 255), 1, cv::LineTypes::LINE_8);
 		if(points.size())
 		{
 			DrawSegments(model_frame, points);
 			sprintf(info_str, "Length: %.1f", intersection_len);
-			putText(model_frame, info_str, Point(0, FONT_SIZE*info_count++), 
-				FONT_HERSHEY_PLAIN, 1, Scalar(255, 255, 255), 1, LINE_8);
+			putText(model_frame, info_str, cv::Point(0, FONT_SIZE*info_count++),
+				cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(255, 255, 255), 1, cv::LineTypes::LINE_8);
 		}
-		if(intersect_center)
+		//if(intersect_center)
 		{
 			float angle = GetAngleDiff(last_move, that_line);
 			drawMarker(model_frame, poc, basic_colors[COLOR_MARK], MARK_POINT, 6, 2);
 			poc = WindowToLogic(poc,model_frame.size());
 			sprintf(info_str, "Crossed at: %.2f:%.2f", poc.x, poc.y);
-			putText(model_frame, info_str, Point(0, FONT_SIZE*info_count++), 
-				FONT_HERSHEY_PLAIN, 1, Scalar(255, 255, 255), 1, LINE_8);
+			putText(model_frame, info_str, cv::Point(0, FONT_SIZE*info_count++),
+				cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(255, 255, 255), 1, cv::LineTypes::LINE_8);
 			sprintf(info_str, "Angle: %.1fdeg", angle);
-			putText(model_frame, info_str, Point(0, FONT_SIZE*info_count++), 
-				FONT_HERSHEY_PLAIN, 1, Scalar(255, 255, 255), 1, LINE_8);
+			putText(model_frame, info_str, cv::Point(0, FONT_SIZE*info_count++),
+				cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(255, 255, 255), 1, cv::LineTypes::LINE_8);
 		}		
 		imshow(WND_NAME_MODEL, model_frame);
 
-		if(waitKey(0) == 27)
+		if(cv::waitKey(0) == 27)
 			break;
 		frame_count++;
 	}
+	if(objDetector != nullptr)
+		delete objDetector;
 	return 0;
 }

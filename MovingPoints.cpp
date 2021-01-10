@@ -4,12 +4,12 @@
 moving_points::moving_points(cv::Mat init_frame):
 _qlevel(0.01), _max_count(50), _min_dist(10)
 {
-	cv::cvtColor(init_frame, _frames[0], CV_BGR2GRAY);
+	cv::cvtColor(init_frame, _frames[0], cv::COLOR_BGR2GRAY);
 	AddPoints();
 }
 void moving_points::AddFrame(cv::Mat new_frame)
 {
-	cv::cvtColor(new_frame, _frames[1], CV_BGR2GRAY);
+	cv::cvtColor(new_frame, _frames[1], cv::COLOR_BGR2GRAY);
 	if(_frames[0].empty())
 		_frames[0] = _frames[1].clone();
 	if(_points[0].size() < MIN_POINTS_COUNT)
